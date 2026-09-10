@@ -8,7 +8,8 @@ on:
       - 'README.md'
       - 'imgs/**'
   schedule:
-    - cron: '0 1,4 * * *'
+    # UTC 01:00 = 北京时间 09:00，随后随机等待到 12:00 之前
+    - cron: '0 1 * * *'
 
 jobs:
   build:
@@ -42,6 +43,26 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
         pip install pypushdeer
+
+    - name: Wait for random checkin time
+      if: github.event_name == 'schedule'
+      run: |
+        python -u - <<'PY'
+        from datetime import datetime, timedelta, timezone
+        import random
+        import time
+
+        beijing_tz = timezone(timedelta(hours=8))
+        now = datetime.now(beijing_tz)
+        deadline = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        remaining_seconds = max(0, int((deadline - now).total_seconds()))
+        delay_seconds = random.randint(0, remaining_seconds)
+        target = now + timedelta(seconds=delay_seconds)
+        print(f"计划签到时间（北京时间）: {target:%Y-%m-%d %H:%M:%S}，等待 {delay_seconds} 秒")
+        if now >= deadline:
+            print("调度已晚于北京时间 12:00，立即执行签到。")
+        time.sleep(delay_seconds)
+        PY
 
     # 执行 签到脚本
     - name: Running checkin
